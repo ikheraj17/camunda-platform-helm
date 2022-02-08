@@ -1,0 +1,781 @@
+---
+# Source: ccsm-helm/charts/operate/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: test-operate
+  labels:
+    app: camunda-cloud-self-managed
+    app.kubernetes.io/name: operate
+    helm.sh/chart: operate-0.0.11
+    app.kubernetes.io/instance: test
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/version: 1.3.1
+    app.kubernetes.io/part-of: camunda-cloud-self-managed
+    app.kubernetes.io/component: operate
+---
+# Source: ccsm-helm/charts/zeebe-gateway/templates/gateway-serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: test-zeebe-gateway-gateway
+  labels:
+    app: camunda-cloud-self-managed
+    app.kubernetes.io/name: zeebe-gateway
+    helm.sh/chart: zeebe-gateway-0.0.11
+    app.kubernetes.io/instance: test
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/version: 1.3.1
+    app.kubernetes.io/part-of: camunda-cloud-self-managed
+    app.kubernetes.io/component: zeebe-gateway
+---
+# Source: ccsm-helm/charts/zeebe/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: test-zeebe
+  labels:
+    app: camunda-cloud-self-managed
+    app.kubernetes.io/name: zeebe
+    helm.sh/chart: zeebe-0.0.11
+    app.kubernetes.io/instance: test
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/version: 1.3.1
+    app.kubernetes.io/part-of: camunda-cloud-self-managed
+    app.kubernetes.io/component: zeebe-broker
+---
+# Source: ccsm-helm/charts/operate/templates/configmap.yaml
+kind: ConfigMap
+metadata:
+  name: test-operate
+  labels:
+    app: camunda-cloud-self-managed
+    app.kubernetes.io/name: operate
+    helm.sh/chart: operate-0.0.11
+    app.kubernetes.io/instance: test
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/version: 1.3.1
+    app.kubernetes.io/part-of: camunda-cloud-self-managed
+    app.kubernetes.io/component: operate
+apiVersion: v1
+data:
+  application.yml: |
+    # Operate configuration file
+    camunda.operate:
+      # ELS instance to store Operate data
+      elasticsearch:
+        # Cluster name
+        clusterName: elasticsearch
+        # Host
+        host: elasticsearch-master
+        # Transport port
+        port: 9200
+      # Zeebe instance
+      zeebe:
+        # Broker contact point
+        brokerContactPoint: "test-zeebe-gateway:26500"
+      # ELS instance to export Zeebe data to
+      zeebeElasticsearch:
+        # Cluster name
+        clusterName: elasticsearch
+        # Host
+        host: elasticsearch-master
+        # Transport port
+        port: 9200
+        # Index prefix, configured in Zeebe Elasticsearch exporter
+        prefix: zeebe-record
+    logging:
+      level:
+        ROOT: INFO
+        org.camunda.operate: DEBUG
+    #Spring Boot Actuator endpoints to be exposed
+    management.endpoints.web.exposure.include: health,info,conditions,configprops,prometheus
+---
+# Source: ccsm-helm/charts/tasklist/templates/configmap.yaml
+kind: ConfigMap
+metadata:
+  name: test-tasklist
+  labels:
+    app: camunda-cloud-self-managed
+    app.kubernetes.io/name: tasklist
+    helm.sh/chart: tasklist-0.0.11
+    app.kubernetes.io/instance: test
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/version: 1.3.1
+    app.kubernetes.io/part-of: camunda-cloud-self-managed
+    app.kubernetes.io/component: tasklist
+apiVersion: v1
+data:
+  application.yml: |
+    # Tasklist configuration file
+
+    camunda.tasklist:
+      # Set Tasklist username and password.
+      # If user with <username> does not exists it will be created.
+      # Default: demo/demo
+      #username:
+      #password:
+      # ELS instance to store Tasklist data
+      elasticsearch:
+        # Cluster name
+        clusterName: elasticsearch
+        # Host
+        host: elasticsearch-master
+        # Transport port
+        port: 9200
+      # Zeebe instance
+      zeebe:
+        # Broker contact point
+        brokerContactPoint: test-zeebe-gateway:26500
+      # ELS instance to export Zeebe data to
+      zeebeElasticsearch:
+        # Cluster name
+        clusterName: elasticsearch
+        # Host
+        host: elasticsearch-master
+        # Transport port
+        port: 9200
+        # Index prefix, configured in Zeebe Elasticsearch exporter
+        prefix: zeebe-record
+    #Spring Boot Actuator endpoints to be exposed
+    management.endpoints.web.exposure.include: health,info,conditions,configprops,prometheus
+    # Enable or disable metrics
+    #management.metrics.export.prometheus.enabled: false
+---
+# Source: ccsm-helm/charts/zeebe-gateway/templates/configmap.yaml
+kind: ConfigMap
+metadata:
+  name: test-zeebe-gateway-gateway
+  labels:
+    app: camunda-cloud-self-managed
+    app.kubernetes.io/name: zeebe-gateway
+    helm.sh/chart: zeebe-gateway-0.0.11
+    app.kubernetes.io/instance: test
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/version: 1.3.1
+    app.kubernetes.io/part-of: camunda-cloud-self-managed
+    app.kubernetes.io/component: zeebe-gateway
+apiVersion: v1
+data:
+  gateway-log4j2.xml: |
+---
+# Source: ccsm-helm/charts/zeebe/templates/configmap.yaml
+kind: ConfigMap
+metadata:
+  name: test-zeebe
+  labels:
+    app: camunda-cloud-self-managed
+    app.kubernetes.io/name: zeebe
+    helm.sh/chart: zeebe-0.0.11
+    app.kubernetes.io/instance: test
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/version: 1.3.1
+    app.kubernetes.io/part-of: camunda-cloud-self-managed
+    app.kubernetes.io/component: zeebe-broker
+apiVersion: v1
+data:
+  startup.sh: |
+    #!/usr/bin/env bash
+    set -eux -o pipefail
+
+    export ZEEBE_BROKER_CLUSTER_NODEID=${ZEEBE_BROKER_CLUSTER_NODEID:-${K8S_NAME##*-}}
+
+    if [ "$(ls -A /exporters/)" ]; then
+      mkdir /usr/local/zeebe/exporters/
+      cp -a /exporters/*.jar /usr/local/zeebe/exporters/
+    else
+      echo "No exporters available."
+    fi
+
+    env
+    exec /usr/local/zeebe/bin/broker
+
+  broker-log4j2.xml: |
+---
+# Source: ccsm-helm/charts/operate/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: test-operate
+  labels:
+    app: camunda-cloud-self-managed
+    app.kubernetes.io/name: operate
+    helm.sh/chart: operate-0.0.11
+    app.kubernetes.io/instance: test
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/version: 1.3.1
+    app.kubernetes.io/part-of: camunda-cloud-self-managed
+    app.kubernetes.io/component: operate
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    name: http
+    targetPort: 8080
+    protocol: TCP
+  selector:
+    app: camunda-cloud-self-managed
+    app.kubernetes.io/name: operate
+    helm.sh/chart: operate-0.0.11
+    app.kubernetes.io/instance: test
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/version: 1.3.1
+    app.kubernetes.io/part-of: camunda-cloud-self-managed
+    app.kubernetes.io/component: operate
+---
+# Source: ccsm-helm/charts/tasklist/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: test-tasklist
+  labels:
+    app: camunda-cloud-self-managed
+    app.kubernetes.io/name: tasklist
+    helm.sh/chart: tasklist-0.0.11
+    app.kubernetes.io/instance: test
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/version: 1.3.1
+    app.kubernetes.io/part-of: camunda-cloud-self-managed
+    app.kubernetes.io/component: tasklist
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    name: http
+    targetPort: 8080
+    protocol: TCP
+  selector:
+    app: camunda-cloud-self-managed
+    app.kubernetes.io/name: tasklist
+    helm.sh/chart: tasklist-0.0.11
+    app.kubernetes.io/instance: test
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/version: 1.3.1
+    app.kubernetes.io/part-of: camunda-cloud-self-managed
+    app.kubernetes.io/component: tasklist
+---
+# Source: ccsm-helm/charts/zeebe-gateway/templates/gateway-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: "test-zeebe-gateway"
+  labels:
+    app: camunda-cloud-self-managed
+    app.kubernetes.io/name: zeebe-gateway
+    helm.sh/chart: zeebe-gateway-0.0.11
+    app.kubernetes.io/instance: test
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/version: 1.3.1
+    app.kubernetes.io/part-of: camunda-cloud-self-managed
+    app.kubernetes.io/component: zeebe-gateway
+  annotations:
+    {}
+spec:
+  type: ClusterIP
+  selector:
+      app: camunda-cloud-self-managed
+      app.kubernetes.io/name: zeebe-gateway
+      helm.sh/chart: zeebe-gateway-0.0.11
+      app.kubernetes.io/instance: test
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/version: 1.3.1
+      app.kubernetes.io/part-of: camunda-cloud-self-managed
+      app.kubernetes.io/component: zeebe-gateway
+  ports:
+    - port: 9600
+      protocol: TCP
+      name: http
+    - port: 26500
+      protocol: TCP
+      name: gateway
+---
+# Source: ccsm-helm/charts/zeebe/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: "test-zeebe"
+  labels:
+    app: camunda-cloud-self-managed
+    app.kubernetes.io/name: zeebe
+    helm.sh/chart: zeebe-0.0.11
+    app.kubernetes.io/instance: test
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/version: 1.3.1
+    app.kubernetes.io/part-of: camunda-cloud-self-managed
+    app.kubernetes.io/component: zeebe-broker
+  annotations:
+    {}
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  type: ClusterIP
+  ports:
+    - port: 9600
+      protocol: TCP
+      name: http
+    - port: 26502
+      protocol: TCP
+      name: internal
+    - port: 26501
+      protocol: TCP
+      name: command
+  selector:
+    app: camunda-cloud-self-managed
+    app.kubernetes.io/name: zeebe
+    helm.sh/chart: zeebe-0.0.11
+    app.kubernetes.io/instance: test
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/version: 1.3.1
+    app.kubernetes.io/part-of: camunda-cloud-self-managed
+    app.kubernetes.io/component: zeebe-broker
+---
+# Source: ccsm-helm/charts/operate/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test-operate
+  labels:
+    app: camunda-cloud-self-managed
+    app.kubernetes.io/name: operate
+    helm.sh/chart: operate-0.0.11
+    app.kubernetes.io/instance: test
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/version: 1.3.1
+    app.kubernetes.io/part-of: camunda-cloud-self-managed
+    app.kubernetes.io/component: operate
+  annotations:
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: camunda-cloud-self-managed
+      app.kubernetes.io/name: operate
+      helm.sh/chart: operate-0.0.11
+      app.kubernetes.io/instance: test
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/version: 1.3.1
+      app.kubernetes.io/part-of: camunda-cloud-self-managed
+      app.kubernetes.io/component: operate
+  template:
+    metadata:
+      labels:
+        app: camunda-cloud-self-managed
+        app.kubernetes.io/name: operate
+        helm.sh/chart: operate-0.0.11
+        app.kubernetes.io/instance: test
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/version: 1.3.1
+        app.kubernetes.io/part-of: camunda-cloud-self-managed
+        app.kubernetes.io/component: operate
+    spec:
+      containers:
+      - name: operate
+        image: "camunda/operate:1.3.1"
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 2Gi
+          requests:
+            cpu: 500m
+            memory: 1Gi
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        volumeMounts:
+        - name: config
+          mountPath: /usr/local/operate/config/application.yml
+          subPath: application.yml
+      volumes:
+      - name: config
+        configMap:
+          name: test-operate
+          defaultMode: 0744
+      securityContext:
+        {}
+---
+# Source: ccsm-helm/charts/tasklist/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test-tasklist
+  labels:
+    app: camunda-cloud-self-managed
+    app.kubernetes.io/name: tasklist
+    helm.sh/chart: tasklist-0.0.11
+    app.kubernetes.io/instance: test
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/version: 1.3.1
+    app.kubernetes.io/part-of: camunda-cloud-self-managed
+    app.kubernetes.io/component: tasklist
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: camunda-cloud-self-managed
+      app.kubernetes.io/name: tasklist
+      helm.sh/chart: tasklist-0.0.11
+      app.kubernetes.io/instance: test
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/version: 1.3.1
+      app.kubernetes.io/part-of: camunda-cloud-self-managed
+      app.kubernetes.io/component: tasklist
+  template:
+    metadata:
+      labels:
+        app: camunda-cloud-self-managed
+        app.kubernetes.io/name: tasklist
+        helm.sh/chart: tasklist-0.0.11
+        app.kubernetes.io/instance: test
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/version: 1.3.1
+        app.kubernetes.io/part-of: camunda-cloud-self-managed
+        app.kubernetes.io/component: tasklist
+    spec:
+      containers:
+      - name: tasklist
+        image: "camunda/tasklist:1.3.1"
+        env:
+          - name: SPRING_PROFILES_ACTIVE
+            value: "auth"
+          - name: GRAPHQL_PLAYGROUND_ENABLED
+            value: "true"
+          - name: GRAPHQL_PLAYGROUND_SETTINGS_REQUEST_CREDENTIALS
+            value: "include"      
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 2Gi
+          requests:
+            cpu: 500m
+            memory: 1Gi
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        volumeMounts:
+        - name: config
+          mountPath: /app/resources/application.yml
+          subPath: application.yml
+      volumes:
+      - name: config
+        configMap:
+          name: test-tasklist
+          defaultMode: 0744
+      securityContext:
+        {}
+---
+# Source: ccsm-helm/charts/zeebe-gateway/templates/gateway-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: "test-zeebe-gateway"
+  labels:
+    app: camunda-cloud-self-managed
+    app.kubernetes.io/name: zeebe-gateway
+    helm.sh/chart: zeebe-gateway-0.0.11
+    app.kubernetes.io/instance: test
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/version: 1.3.1
+    app.kubernetes.io/part-of: camunda-cloud-self-managed
+    app.kubernetes.io/component: zeebe-gateway
+  annotations:
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: camunda-cloud-self-managed
+      app.kubernetes.io/name: zeebe-gateway
+      helm.sh/chart: zeebe-gateway-0.0.11
+      app.kubernetes.io/instance: test
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/version: 1.3.1
+      app.kubernetes.io/part-of: camunda-cloud-self-managed
+      app.kubernetes.io/component: zeebe-gateway
+  template:
+    metadata:
+      labels:
+        app: camunda-cloud-self-managed
+        app.kubernetes.io/name: zeebe-gateway
+        helm.sh/chart: zeebe-gateway-0.0.11
+        app.kubernetes.io/instance: test
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/version: 1.3.1
+        app.kubernetes.io/part-of: camunda-cloud-self-managed
+        app.kubernetes.io/component: zeebe-gateway
+      annotations:
+    spec:
+      containers:
+        - name: zeebe-gateway
+          image: "camunda/zeebe:1.3.1"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 9600
+              name: http
+            - containerPort: 26500
+              name: gateway
+            - containerPort: 26502
+              name: internal
+          env:
+            - name: ZEEBE_STANDALONE_GATEWAY
+              value: "true"
+            - name: ZEEBE_GATEWAY_CLUSTER_CLUSTERNAME
+              value: test-zeebe
+            - name: ZEEBE_GATEWAY_CLUSTER_MEMBERID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: ZEEBE_LOG_LEVEL
+              value: "info"
+            - name: JAVA_TOOL_OPTIONS
+              value: 
+            - name: ZEEBE_GATEWAY_CLUSTER_CONTACTPOINT
+              value: test-zeebe:26502
+            - name: ZEEBE_GATEWAY_NETWORK_HOST
+              value: 0.0.0.0
+            - name: ZEEBE_GATEWAY_NETWORK_PORT
+              value: "26500"
+            - name: ZEEBE_GATEWAY_CLUSTER_HOST
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: ZEEBE_GATEWAY_CLUSTER_PORT
+              value: "26502"
+            - name: ZEEBE_GATEWAY_MONITORING_HOST
+              value: 0.0.0.0
+            - name: ZEEBE_GATEWAY_MONITORING_PORT
+              value: "9600"
+          volumeMounts:
+          securityContext:
+            {}
+          readinessProbe:
+            tcpSocket:
+              port: gateway
+            initialDelaySeconds: 20
+            periodSeconds: 5
+      volumes:
+        - name: config
+          configMap:
+            name: test-zeebe-gateway-gateway
+            defaultMode: 0744
+---
+# Source: ccsm-helm/charts/zeebe/templates/statefulset.yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: "test-zeebe"
+  labels:
+    app: camunda-cloud-self-managed
+    app.kubernetes.io/name: zeebe
+    helm.sh/chart: zeebe-0.0.11
+    app.kubernetes.io/instance: test
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/version: 1.3.1
+    app.kubernetes.io/part-of: camunda-cloud-self-managed
+    app.kubernetes.io/component: zeebe-broker
+  annotations:
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: camunda-cloud-self-managed
+      app.kubernetes.io/name: zeebe
+      helm.sh/chart: zeebe-0.0.11
+      app.kubernetes.io/instance: test
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/version: 1.3.1
+      app.kubernetes.io/part-of: camunda-cloud-self-managed
+      app.kubernetes.io/component: zeebe-broker
+  serviceName: "test-zeebe"
+  updateStrategy:
+    type: RollingUpdate
+  podManagementPolicy: Parallel
+  template:
+    metadata:
+      labels:
+        app: camunda-cloud-self-managed
+        app.kubernetes.io/name: zeebe
+        helm.sh/chart: zeebe-0.0.11
+        app.kubernetes.io/instance: test
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/version: 1.3.1
+        app.kubernetes.io/part-of: camunda-cloud-self-managed
+        app.kubernetes.io/component: zeebe-broker
+      annotations:
+    spec:
+      initContainers:
+      containers:
+      - name: zeebe
+        image: "camunda/zeebe:1.3.1"
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: LC_ALL
+          value: C.UTF-8
+        - name: K8S_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: K8S_SERVICE_NAME
+          value: "test-zeebe"
+        - name: K8S_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: ZEEBE_BROKER_NETWORK_ADVERTISEDHOST
+          value: "$(K8S_NAME).$(K8S_SERVICE_NAME).$(K8S_NAMESPACE).svc.cluster.local"
+        - name: ZEEBE_BROKER_CLUSTER_INITIALCONTACTPOINTS
+          value:
+            $(K8S_SERVICE_NAME)-0.$(K8S_SERVICE_NAME).$(K8S_NAMESPACE).svc.cluster.local:26502,
+            $(K8S_SERVICE_NAME)-1.$(K8S_SERVICE_NAME).$(K8S_NAMESPACE).svc.cluster.local:26502,
+            $(K8S_SERVICE_NAME)-2.$(K8S_SERVICE_NAME).$(K8S_NAMESPACE).svc.cluster.local:26502,
+        - name: ZEEBE_BROKER_CLUSTER_CLUSTERNAME
+          value: test-zeebe
+        - name: ZEEBE_LOG_LEVEL
+          value: "info"
+        - name: ZEEBE_BROKER_CLUSTER_PARTITIONSCOUNT
+          value: "3"
+        - name: ZEEBE_BROKER_CLUSTER_CLUSTERSIZE
+          value: "3"
+        - name: ZEEBE_BROKER_CLUSTER_REPLICATIONFACTOR
+          value: "3"
+        - name: ZEEBE_BROKER_THREADS_CPUTHREADCOUNT
+          value: "2"
+        - name: ZEEBE_BROKER_THREADS_IOTHREADCOUNT
+          value: "2"
+        - name: ZEEBE_BROKER_GATEWAY_ENABLE
+          value: "false"
+        - name: ZEEBE_BROKER_EXPORTERS_ELASTICSEARCH_CLASSNAME
+          value: "io.camunda.zeebe.exporter.ElasticsearchExporter"
+        - name: ZEEBE_BROKER_EXPORTERS_ELASTICSEARCH_ARGS_URL
+          value: "http://elasticsearch-master:9200"
+        - name: ZEEBE_BROKER_NETWORK_COMMANDAPI_PORT
+          value: "26501"
+        - name: ZEEBE_BROKER_NETWORK_INTERNALAPI_PORT
+          value: "26502"
+        - name: ZEEBE_BROKER_NETWORK_MONITORINGAPI_PORT
+          value: "9600"
+        - name: K8S_POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: JAVA_TOOL_OPTIONS
+          value: "-XX:MaxRAMPercentage=25.0 -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/usr/local/zeebe/data -XX:ErrorFile=/usr/local/zeebe/data/zeebe_error%p.log -XX:+ExitOnOutOfMemoryError"
+        ports:
+        - containerPort: 9600
+          name: http
+        - containerPort: 26501
+          name: command
+        - containerPort: 26502
+          name: internal
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 9600
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 1
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 4Gi
+          requests:
+            cpu: 500m
+            memory: 2Gi
+        volumeMounts:
+        - name: config
+          mountPath: /usr/local/bin/startup.sh
+          subPath: startup.sh
+        - name: data
+          mountPath: /usr/local/zeebe/data
+        - name: exporters
+          mountPath: /exporters
+        securityContext:
+          {}
+      volumes:
+      - name: config
+        configMap:
+          name: test-zeebe
+          defaultMode: 0744
+      - name: exporters
+        emptyDir: {}
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes: [ReadWriteOnce]
+      storageClassName: 
+      resources:
+        requests:
+          storage: "10Gi"
+---
+# Source: ccsm-helm/charts/operate/templates/tests/test-connection.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "test-operate-test-connection"
+  labels:
+    app: camunda-cloud-self-managed
+    app.kubernetes.io/name: operate
+    helm.sh/chart: operate-0.0.11
+    app.kubernetes.io/instance: test
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/version: 1.3.1
+    app.kubernetes.io/part-of: camunda-cloud-self-managed
+    app.kubernetes.io/component: operate
+  annotations:
+    "helm.sh/hook": test-success
+spec:
+  containers:
+    - name: wget
+      image: busybox
+      command: ['wget']
+      args:  ['test-operate:80']
+  restartPolicy: Never
+---
+# Source: ccsm-helm/charts/tasklist/templates/tests/test-connection.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "test-tasklist-test-connection"
+  labels:
+    app: camunda-cloud-self-managed
+    app.kubernetes.io/name: tasklist
+    helm.sh/chart: tasklist-0.0.11
+    app.kubernetes.io/instance: test
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/version: 1.3.1
+    app.kubernetes.io/part-of: camunda-cloud-self-managed
+    app.kubernetes.io/component: tasklist
+  annotations:
+    "helm.sh/hook": test-success
+spec:
+  containers:
+    - name: wget
+      image: busybox
+      command: ['wget']
+      args:  ['test-tasklist:80']
+  restartPolicy: Never
+---
+# Source: ccsm-helm/charts/zeebe/templates/tests/test-connection.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "test-zeebe-test-connection"
+  labels: 
+    app: camunda-cloud-self-managed
+    app.kubernetes.io/name: zeebe
+    helm.sh/chart: zeebe-0.0.11
+    app.kubernetes.io/instance: test
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/version: 1.3.1
+    app.kubernetes.io/part-of: camunda-cloud-self-managed
+    app.kubernetes.io/component: zeebe-broker
+  annotations:
+    "helm.sh/hook": test-success
+spec:
+  containers:
+    - name: wget
+      image: busybox
+      command: ['wget']
+      args:  ['test-zeebe:9600']
+  restartPolicy: Never
