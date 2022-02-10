@@ -41,8 +41,8 @@ func TestStatefulSetTemplate(t *testing.T) {
 func (s *statefulSetTemplateTest) TestContainerSpecImage() {
 	options := &helm.Options{
 		SetValues: map[string]string{
-			"image.repository": "helm/zeebe",
-			"image.tag":        "a.b.c",
+			"zeebe.image.repository": "helm/zeebe",
+			"zeebe.image.tag":        "a.b.c",
 		},
 		KubectlOptions: k8s.NewKubectlOptions("", "", s.namespace),
 		ExtraArgs: map[string][]string{"template": {"--debug"}, "install": {"--debug"}},

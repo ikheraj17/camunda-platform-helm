@@ -28,6 +28,8 @@ spec:
         {{ $key }}: {{ $value | quote }}
         {{- end }}
     spec:
+      resources:
+      {{- toYaml .Values.resources | nindent 10 }}
       {{- if .Values.priorityClassName }}
       priorityClassName: {{ .Values.priorityClassName | quote }}
       {{- end }}
@@ -122,8 +124,6 @@ spec:
           periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
           successThreshold: {{ .Values.readinessProbe.successThreshold }}
           timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
-        resources:
-          {{- toYaml .Values.resources | nindent 10 }}
         volumeMounts:
         - name: config
           mountPath: /usr/local/bin/startup.sh
