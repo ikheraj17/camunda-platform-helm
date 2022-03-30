@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/cookiejar"
 	"os"
@@ -31,15 +32,16 @@ import (
 	"context"
 	"testing"
 
+	"github.com/PuerkitoBio/goquery"
 	"github.com/camunda-cloud/zeebe/clients/go/pkg/pb"
 	"github.com/camunda-cloud/zeebe/clients/go/pkg/zbc"
-	"github.com/gruntwork-io/terratest/modules/helm"
 	"github.com/gruntwork-io/terratest/modules/k8s"
 	"github.com/gruntwork-io/terratest/modules/logger"
 	"github.com/gruntwork-io/terratest/modules/random"
 	"github.com/gruntwork-io/terratest/modules/retry"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+	"golang.org/x/net/html"
 	"google.golang.org/grpc"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -56,41 +58,45 @@ func TestIntegration(t *testing.T) {
 	chartPath, err := filepath.Abs("../../")
 	require.NoError(t, err)
 
-	namespace := createNamespaceName()
+	namespace := "zell-helm-test" // createNamespaceName()
 	kubeOptions := k8s.NewKubectlOptions("gke_zeebe-io_europe-west1-b_zeebe-cluster", "", namespace)
 
 	suite.Run(t, &integrationTest{
 		chartPath:   chartPath,
-		release:     "zeebe-cluster-helm-it",
+		release:     "zell-helm-test",
 		namespace:   namespace,
 		kubeOptions: kubeOptions,
 	})
 }
-
-func (s *integrationTest) SetupTest() {
-	k8s.CreateNamespace(s.T(), s.kubeOptions, s.namespace)
-}
-
-func (s *integrationTest) TearDownTest() {
-	k8s.DeleteNamespace(s.T(), s.kubeOptions, s.namespace)
-}
+//
+//func (s *integrationTest) SetupTest() {
+//	k8s.CreateNamespace(s.T(), s.kubeOptions, s.namespace)
+//}
+//
+//func (s *integrationTest) TearDownTest() {
+//	k8s.DeleteNamespace(s.T(), s.kubeOptions, s.namespace)
+//}
 
 func (s *integrationTest) TestServicesEnd2End() {
 	// given
-	options := &helm.Options{
-		KubectlOptions: s.kubeOptions,
-	}
+	//options := &helm.Options{
+	//	KubectlOptions: s.kubeOptions,
+	//}
 
 	// when
-	helm.Install(s.T(), options, s.chartPath, s.release)
+	//helm.Install(s.T(), options, s.chartPath, s.release)
 
 	// then
 	s.awaitCCSMPods()
-	s.createProcessInstance()
-
-	s.awaitElasticPods()
-	s.assertProcessDefinitionFromOperate()
-	s.assertTasksFromTasklist()
+	_, err := s.loginToIdentity()
+	if err != nil {
+		s.T().Logf("Error on login %s", err)
+	}
+	//s.createProcessInstance()
+	//
+	//s.awaitElasticPods()
+	//s.assertProcessDefinitionFromOperate()
+	//s.assertTasksFromTasklist()
 }
 
 func (s *integrationTest) assertProcessDefinitionFromOperate() {
@@ -194,6 +200,76 @@ func (s *integrationTest) createProcessInstance() {
 		return "Process instance created.", err
 	})
 	s.T().Logf(message)
+}
+
+func (s *integrationTest) loginToIdentity() (*bytes.Buffer, error) {
+	identityServiceName := fmt.Sprintf("%s-identity", s.release)
+	endpoint, closeFn := s.createPortForwardedHttpClient(identityServiceName)
+	defer closeFn()
+
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		return nil, err
+	}
+
+	httpClient := http.Client{
+		Jar:     jar,
+		Timeout: 30 * time.Second,
+	}
+	// curl --include --request POST --cookie-jar "ope-session" "http://localhost:8080/api/login?username=demo&password=demo"
+	request, err := http.NewRequest("GET", "http://" + endpoint + "/auth/login", nil)
+	if err != nil {
+		return nil, err
+	}
+	request.Close = true
+
+	response, err := httpClient.Do(request)
+	if err != nil {
+		return nil,err
+	}
+	defer response.Body.Close()
+	body := response.Body
+
+	b, err := io.ReadAll(body)
+	// b, err := ioutil.ReadAll(resp.Body)  Go.1.15 and earlier
+	if err != nil {
+		s.T().Logf("FAIILED")
+		return nil, nil
+	}
+	fmt.Println(string(b))
+
+	//read html by hand
+	docs, err := html.Parse(body)
+	if err != nil {
+		s.T().Logf("FAIILED")
+		return nil, err
+	}
+	s.T().Logf(docs.FirstChild.Data)
+	htmlBody := docs.FirstChild.FirstChild.NextSibling
+	s.T().Logf(htmlBody.Data)
+
+
+	doc, err := goquery.NewDocumentFromReader(body)
+	if err != nil {
+		return nil, err
+	}
+//
+// <form id="kc-form-login" onsubmit="login.disabled = true; return true;"
+//		action="http://localhost:18080/auth/realms/camunda-platform/login-actions/authenticate?session_code=B0BxW2ST2DH0NYE1J-THQncuCVc2yPck5JFmgEnLWbM&amp;execution=be1c2750-2b28-4044-8cf3-22b1331efeae&amp;client_id=camunda-identity&amp;tab_id=tp2zBJnsh6o"
+//		method="post">
+
+	//
+	s.T().Logf("Title: %s", doc.Find("title").Text())
+	doc.Find("form").Find("action").Each(func(i int, s *goquery.Selection) {
+		// For each item found, get the title
+		title := s.Text()
+		fmt.Printf("Review %d: %s\n", i, title)
+	})
+	s.T().Logf(doc.Find("form").Text())
+	s.T().Logf(doc.Find("action").Text())
+
+	// curl -i -H "Content-Type: application/json" -XPOST "http://localhost:8080/v1/process-definitions/list" --cookie "ope-session" -d "{}"
+	return nil, nil
 }
 
 func (s *integrationTest) queryProcessDefinitionsFromOperate() (*bytes.Buffer, error) {
