@@ -219,24 +219,8 @@ func (s *integrationTest) loginToIdentity() (*bytes.Buffer, error) {
 		Timeout: 30 * time.Second,
 	}
 
-	values := url.Values{
-		"username":  {"demo"},
-		"password":  {"demo"},
-		"client_id": {"camunda-identity"},
-		"grant_type": {"password"},
-		"client_secret": {"mETHbOTaSq9w9TFrgXXPLYFqlcmkFQrP"},
-	}
-
-	resp, err := http.PostForm("http://localhost:18080/auth/realms/camunda-platform/protocol/openid-connect/token", values)
-	if err != nil {
-		return nil, err
-	}
 
 	var res map[string]interface{}
-
-	json.NewDecoder(resp.Body).Decode(&res)
-
-	fmt.Println(res)
 
 	// curl --include --request POST --cookie-jar "ope-session" "http://localhost:8080/api/login?username=demo&password=demo"
 	request, err := http.NewRequest("GET", "http://" + endpoint + "/auth/login", nil)
@@ -284,12 +268,12 @@ func (s *integrationTest) loginToIdentity() (*bytes.Buffer, error) {
 	submatch := regexCompiled.FindStringSubmatch(string(b))
 
 	sessionUrl := string(submatch[2])
-	values = url.Values{
+	values := url.Values{
 		"username":  {"demo"},
 		"password":  {"demo"},
 	}
 
-	resp, err = http.PostForm(sessionUrl, values)
+	resp, err := http.PostForm(sessionUrl, values)
 	if err != nil {
 		return nil, err
 	}
