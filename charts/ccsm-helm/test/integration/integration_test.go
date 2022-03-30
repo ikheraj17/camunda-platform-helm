@@ -24,8 +24,10 @@ import (
 	"io"
 	"net/http"
 	"net/http/cookiejar"
+	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -216,6 +218,26 @@ func (s *integrationTest) loginToIdentity() (*bytes.Buffer, error) {
 		Jar:     jar,
 		Timeout: 30 * time.Second,
 	}
+
+	values := url.Values{
+		"username":  {"demo"},
+		"password":  {"demo"},
+		"client_id": {"camunda-identity"},
+		"grant_type": {"password"},
+		"client_secret": {"mETHbOTaSq9w9TFrgXXPLYFqlcmkFQrP"},
+	}
+
+	resp, err := http.PostForm("http://localhost:18080/auth/realms/camunda-platform/protocol/openid-connect/token", values)
+	if err != nil {
+		return nil, err
+	}
+
+	var res map[string]interface{}
+
+	json.NewDecoder(resp.Body).Decode(&res)
+
+	fmt.Println(res)
+
 	// curl --include --request POST --cookie-jar "ope-session" "http://localhost:8080/api/login?username=demo&password=demo"
 	request, err := http.NewRequest("GET", "http://" + endpoint + "/auth/login", nil)
 	if err != nil {
@@ -257,9 +279,27 @@ func (s *integrationTest) loginToIdentity() (*bytes.Buffer, error) {
 // <form id="kc-form-login" onsubmit="login.disabled = true; return true;"
 //		action="http://localhost:18080/auth/realms/camunda-platform/login-actions/authenticate?session_code=B0BxW2ST2DH0NYE1J-THQncuCVc2yPck5JFmgEnLWbM&amp;execution=be1c2750-2b28-4044-8cf3-22b1331efeae&amp;client_id=camunda-identity&amp;tab_id=tp2zBJnsh6o"
 //		method="post">
+	regexCompiled := regexp.MustCompile("(action=\")(.*)(\"[\\s\\w]+=\")")
 
-	//
+	submatch := regexCompiled.FindStringSubmatch(string(b))
+
+	sessionUrl := string(submatch[2])
+	values = url.Values{
+		"username":  {"demo"},
+		"password":  {"demo"},
+	}
+
+	resp, err = http.PostForm(sessionUrl, values)
+	if err != nil {
+		return nil, err
+	}
+	json.NewDecoder(resp.Body).Decode(&res)
+
+	fmt.Println(res)
+
 	s.T().Logf("Title: %s", doc.Find("title").Text())
+	find := doc.Find("#kc-form-login")
+	s.T().Logf("Form: %s", find.Text())
 	doc.Find("form").Find("action").Each(func(i int, s *goquery.Selection) {
 		// For each item found, get the title
 		title := s.Text()
