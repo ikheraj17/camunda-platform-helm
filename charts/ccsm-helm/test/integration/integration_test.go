@@ -22,13 +22,10 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/http/cookiejar"
-	"net/url"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"time"
 
@@ -215,7 +212,7 @@ func (s *integrationTest) loginToIdentity() (*bytes.Buffer, error) {
 	restyClient.SetTLSClientConfig(&tls.Config{ InsecureSkipVerify: true })
 	ctx := context.Background()
 	// client.Login(ctx, "camunda-identity", "", "camunda-platform", "demo", "demo")
-	token, err :=  client.LoginAdmin(ctx, "admin", string(password), "camunda-platform")
+	token, err :=  client.LoginAdmin(ctx, "admin", string(password), "master")
 	if err != nil {
 		return nil, err
 	}
@@ -223,87 +220,30 @@ func (s *integrationTest) loginToIdentity() (*bytes.Buffer, error) {
 	s.T().Logf("%s", token.AccessToken)
 
 
-
-	identityServiceName := fmt.Sprintf("%s-identity", s.release)
-	endpoint, closeFn := s.createPortForwardedHttpClient(identityServiceName)
-	defer closeFn()
-
-	jar, err := cookiejar.New(nil)
-	if err != nil {
+	otherClients, err := client.GetClients(ctx, token.AccessToken, "camunda-platform", gocloak.GetClientsParams{})// client.GetClient(ctx, token.AccessToken, "camunda-platform", "camunda-identity")
+	if (err != nil) {
 		return nil, err
 	}
 
-	httpClient := http.Client{
-		Jar:     jar,
-		Timeout: 30 * time.Second,
+	for _, returnedClient := range otherClients {
+		if (returnedClient != nil) {
+			if (*returnedClient.ClientID == "camunda-identity") {
+				id := *returnedClient.ID
+
+				getClient, err := client.GetClient(ctx, token.AccessToken, "camunda-platform", id)
+				if (err != nil) {
+					return nil, err
+				}
+				if (getClient.Secret != nil)				{
+					s.T().Logf("%s", *getClient.Secret)
+				}
+
+
+				s.T().Logf("%v", getClient)
+			}
+		}
+
 	}
-
-
-	////////////////////////////////////////////////////////////////////////////////////////////////
-	///////////////////////////////////// REQUEST URL WITH SESSION /////////////////////////////////
-	////////////////////////////////////////////////////////////////////////////////////////////////
-	request, err := http.NewRequest("GET", "http://" + endpoint + "/auth/login", nil)
-	if err != nil {
-		return nil, err
-	}
-	request.Close = true
-
-	response, err := httpClient.Do(request)
-	if err != nil {
-		return nil,err
-	}
-	defer response.Body.Close()
-	body := response.Body
-	b, err := io.ReadAll(body)
-	//clone := response.Header.Clone()
-
-	// print
-	err = s.printBody(err, b)
-	if err != nil {
-		return nil, err
-	}
-
-	////////////////////////////////////////////////////////////////////////////////////////////////
-	///////////////////////////////////// EXTRACT URL WITH SESSION /////////////////////////////////
-	////////////////////////////////////////////////////////////////////////////////////////////////
-	//
-	// <form id="kc-form-login" onsubmit="login.disabled = true; return true;"
-	//		action="http://localhost:18080/auth/realms/camunda-platform/login-actions/authenticate?session_code=B0BxW2ST2DH0NYE1J-THQncuCVc2yPck5JFmgEnLWbM&amp;execution=be1c2750-2b28-4044-8cf3-22b1331efeae&amp;client_id=camunda-identity&amp;tab_id=tp2zBJnsh6o"
-	//		method="post">
-	regexCompiled := regexp.MustCompile("(action=\")(.*)(\"[\\s\\w]+=\")")
-
-	submatch := regexCompiled.FindStringSubmatch(string(b))
-
-	sessionUrl := string(submatch[2])
-	values := url.Values{
-		"username": {"demo"},
-		"password": {"demo"},
-		"client_id": {"camunda-identity"},
-		"grant_type": {"password"},
-	}
-
-	////////////////////////////////////////////////////////////////////////////////////////////////
-	///////////////////////////////////// REQUEST TOKEN /////////////////////////////////
-	////////////////////////////////////////////////////////////////////////////////////////////////
-	s.T().Logf("Send values: %v to %s ", values, sessionUrl)
-	resp, err := httpClient.PostForm(sessionUrl, values)
-	if err != nil {
-		return nil, err
-	}
-	b, err = io.ReadAll(resp.Body)
-
-	err = s.printBody(err, b)
-	if err != nil  {
-		return nil, err
-	}
-	//
-	//var res2 map[string]interface{}
-	//err = json.NewDecoder(b).Decode(&res2)
-	//if err != nil {
-	//	return nil, err
-	//}
-	//
-	//s.T().Logf("%s", res2)
 
 	// curl -i -H "Content-Type: application/json" -XPOST "http://localhost:8080/v1/process-definitions/list" --cookie "ope-session" -d "{}"
 	return nil, nil
