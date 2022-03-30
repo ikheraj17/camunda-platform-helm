@@ -34,7 +34,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/PuerkitoBio/goquery"
 	"github.com/camunda-cloud/zeebe/clients/go/pkg/pb"
 	"github.com/camunda-cloud/zeebe/clients/go/pkg/zbc"
 	"github.com/gruntwork-io/terratest/modules/k8s"
@@ -43,7 +42,6 @@ import (
 	"github.com/gruntwork-io/terratest/modules/retry"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
-	"golang.org/x/net/html"
 	"google.golang.org/grpc"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -220,9 +218,9 @@ func (s *integrationTest) loginToIdentity() (*bytes.Buffer, error) {
 	}
 
 
-	var res map[string]interface{}
-
-	// curl --include --request POST --cookie-jar "ope-session" "http://localhost:8080/api/login?username=demo&password=demo"
+	////////////////////////////////////////////////////////////////////////////////////////////////
+	///////////////////////////////////// REQUEST URL WITH SESSION /////////////////////////////////
+	////////////////////////////////////////////////////////////////////////////////////////////////
 	request, err := http.NewRequest("GET", "http://" + endpoint + "/auth/login", nil)
 	if err != nil {
 		return nil, err
@@ -235,65 +233,69 @@ func (s *integrationTest) loginToIdentity() (*bytes.Buffer, error) {
 	}
 	defer response.Body.Close()
 	body := response.Body
-
 	b, err := io.ReadAll(body)
-	// b, err := ioutil.ReadAll(resp.Body)  Go.1.15 and earlier
-	if err != nil {
-		s.T().Logf("FAIILED")
-		return nil, nil
-	}
-	fmt.Println(string(b))
+	//clone := response.Header.Clone()
 
-	//read html by hand
-	docs, err := html.Parse(body)
-	if err != nil {
-		s.T().Logf("FAIILED")
-		return nil, err
-	}
-	s.T().Logf(docs.FirstChild.Data)
-	htmlBody := docs.FirstChild.FirstChild.NextSibling
-	s.T().Logf(htmlBody.Data)
-
-
-	doc, err := goquery.NewDocumentFromReader(body)
+	// print
+	err = s.printBody(err, b)
 	if err != nil {
 		return nil, err
 	}
-//
-// <form id="kc-form-login" onsubmit="login.disabled = true; return true;"
-//		action="http://localhost:18080/auth/realms/camunda-platform/login-actions/authenticate?session_code=B0BxW2ST2DH0NYE1J-THQncuCVc2yPck5JFmgEnLWbM&amp;execution=be1c2750-2b28-4044-8cf3-22b1331efeae&amp;client_id=camunda-identity&amp;tab_id=tp2zBJnsh6o"
-//		method="post">
+
+	////////////////////////////////////////////////////////////////////////////////////////////////
+	///////////////////////////////////// EXTRACT URL WITH SESSION /////////////////////////////////
+	////////////////////////////////////////////////////////////////////////////////////////////////
+	//
+	// <form id="kc-form-login" onsubmit="login.disabled = true; return true;"
+	//		action="http://localhost:18080/auth/realms/camunda-platform/login-actions/authenticate?session_code=B0BxW2ST2DH0NYE1J-THQncuCVc2yPck5JFmgEnLWbM&amp;execution=be1c2750-2b28-4044-8cf3-22b1331efeae&amp;client_id=camunda-identity&amp;tab_id=tp2zBJnsh6o"
+	//		method="post">
 	regexCompiled := regexp.MustCompile("(action=\")(.*)(\"[\\s\\w]+=\")")
 
 	submatch := regexCompiled.FindStringSubmatch(string(b))
 
 	sessionUrl := string(submatch[2])
 	values := url.Values{
-		"username":  {"demo"},
-		"password":  {"demo"},
+		"username": {"demo"},
+		"password": {"demo"},
+		"client_id": {"camunda-identity"},
+		"grant_type": {"password"},
 	}
 
-	resp, err := http.PostForm(sessionUrl, values)
+	////////////////////////////////////////////////////////////////////////////////////////////////
+	///////////////////////////////////// REQUEST TOKEN /////////////////////////////////
+	////////////////////////////////////////////////////////////////////////////////////////////////
+	s.T().Logf("Send values: %v to %s ", values, sessionUrl)
+	resp, err := httpClient.PostForm(sessionUrl, values)
 	if err != nil {
 		return nil, err
 	}
-	json.NewDecoder(resp.Body).Decode(&res)
+	b, err = io.ReadAll(resp.Body)
 
-	fmt.Println(res)
-
-	s.T().Logf("Title: %s", doc.Find("title").Text())
-	find := doc.Find("#kc-form-login")
-	s.T().Logf("Form: %s", find.Text())
-	doc.Find("form").Find("action").Each(func(i int, s *goquery.Selection) {
-		// For each item found, get the title
-		title := s.Text()
-		fmt.Printf("Review %d: %s\n", i, title)
-	})
-	s.T().Logf(doc.Find("form").Text())
-	s.T().Logf(doc.Find("action").Text())
+	err = s.printBody(err, b)
+	if err != nil  {
+		return nil, err
+	}
+	//
+	//var res2 map[string]interface{}
+	//err = json.NewDecoder(b).Decode(&res2)
+	//if err != nil {
+	//	return nil, err
+	//}
+	//
+	//s.T().Logf("%s", res2)
 
 	// curl -i -H "Content-Type: application/json" -XPOST "http://localhost:8080/v1/process-definitions/list" --cookie "ope-session" -d "{}"
 	return nil, nil
+}
+
+func (s *integrationTest) printBody(err error, b []byte) (error) {
+	// b, err := ioutil.ReadAll(resp.Body)  Go.1.15 and earlier
+	if err != nil {
+		s.T().Logf("FAIILED")
+		return err
+	}
+	s.T().Logf("Response Body: \n%s", string(b))
+	return  nil
 }
 
 func (s *integrationTest) queryProcessDefinitionsFromOperate() (*bytes.Buffer, error) {
