@@ -19,6 +19,7 @@ package integration
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -34,6 +35,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/Nerzal/gocloak/v11"
 	"github.com/camunda-cloud/zeebe/clients/go/pkg/pb"
 	"github.com/camunda-cloud/zeebe/clients/go/pkg/zbc"
 	"github.com/gruntwork-io/terratest/modules/k8s"
@@ -63,7 +65,7 @@ func TestIntegration(t *testing.T) {
 
 	suite.Run(t, &integrationTest{
 		chartPath:   chartPath,
-		release:     "zell-helm-test",
+		release:     "ccsm-helm-test",
 		namespace:   namespace,
 		kubeOptions: kubeOptions,
 	})
@@ -203,6 +205,25 @@ func (s *integrationTest) createProcessInstance() {
 }
 
 func (s *integrationTest) loginToIdentity() (*bytes.Buffer, error) {
+
+	secret := k8s.GetSecret(s.T(), s.kubeOptions, "ccsm-helm-test-keycloak")
+	password := secret.Data["admin-password"]
+
+	client := gocloak.NewClient("http://localhost:18080")
+	restyClient := client.RestyClient()
+	restyClient.SetDebug(true)
+	restyClient.SetTLSClientConfig(&tls.Config{ InsecureSkipVerify: true })
+	ctx := context.Background()
+	// client.Login(ctx, "camunda-identity", "", "camunda-platform", "demo", "demo")
+	token, err :=  client.LoginAdmin(ctx, "admin", string(password), "camunda-platform")
+	if err != nil {
+		return nil, err
+	}
+
+	s.T().Logf("%s", token.AccessToken)
+
+
+
 	identityServiceName := fmt.Sprintf("%s-identity", s.release)
 	endpoint, closeFn := s.createPortForwardedHttpClient(identityServiceName)
 	defer closeFn()
