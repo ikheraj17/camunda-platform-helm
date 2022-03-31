@@ -585,6 +585,8 @@ elasticsearch:
   extraEnvs:
     - name: "xpack.security.enabled"
       value: "false"
+    - name: "cluster.initial_master_nodes"
+      value: "elasticsearch-master-0"
 
   replicas: 2
 
